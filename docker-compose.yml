@@ -1,0 +1,108 @@
+name: trabajo7-fail2ban
+
+services:
+  openldap:
+    build: ../source-repos/trabajo7-ldap
+    container_name: trabajo7-openldap
+    hostname: ldap.example.com
+    environment:
+      LDAP_ORGANISATION: Example Corp
+      LDAP_DOMAIN: example.com
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD:-adminpassword}
+      LDAP_LOG_LEVEL: "256"
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "${LDAPS_HOST_PORT:-636}:636"
+    volumes:
+      - ldap_data:/var/lib/ldap
+      - ldap_config:/etc/ldap/slapd.d
+      - backend_auth_logs:/var/log/backend
+    networks:
+      - appnet
+
+  backend:
+    build: ../source-repos/trabajo7-backend
+    container_name: trabajo7-backend
+    environment:
+      PORT: "5000"
+      LDAP_HOST: openldap
+      LDAP_PORT: "389"
+      LDAP_BASE_DN: dc=example,dc=com
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD:-adminpassword}
+      API_SECRET: ${API_SECRET:-INITIAL-SECRET-2026-KEY}
+      SHARED_SECRET_FILE: /shared/api_secret.txt
+      SHARED_LDAP_SECRET_FILE: /shared/ldap_secret.txt
+      AUTH_FAILURE_LOG: /var/log/backend/auth-failures.log
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "${BACKEND_HOST_PORT:-5000}:5000"
+    volumes:
+      - shared_secrets:/shared
+      - backend_auth_logs:/var/log/backend
+    depends_on:
+      - openldap
+    networks:
+      - appnet
+
+  frontend:
+    build: ../source-repos/trabajo7-frontend
+    container_name: trabajo7-frontend
+    environment:
+      API_URL: http://localhost:${BACKEND_HOST_PORT:-5000}/api/data
+      API_KEY: ${API_SECRET:-INITIAL-SECRET-2026-KEY}
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "${FRONTEND_HOST_PORT:-8080}:80"
+    volumes:
+      - shared_secrets:/shared
+    depends_on:
+      - backend
+    networks:
+      - appnet
+
+  rotator:
+    build: ../source-repos/trabajo7-rotator
+    container_name: trabajo7-rotator
+    environment:
+      ROTATION_INTERVAL_SECONDS: "120"
+      SHARED_SECRET_FILE: /shared/api_secret.txt
+      SHARED_LDAP_SECRET_FILE: /shared/ldap_secret.txt
+      FRONTEND_ENV_FILE: /shared/env-config.js
+      FRONTEND_API_URL: http://localhost:${BACKEND_HOST_PORT:-5000}/api/data
+      API_SECRET: ${API_SECRET:-INITIAL-SECRET-2026-KEY}
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD:-adminpassword}
+      LDAP_HOST: openldap
+      LDAP_PORT: "389"
+      LDAP_BASE_DN: dc=example,dc=com
+    volumes:
+      - shared_secrets:/shared
+    depends_on:
+      - openldap
+      - backend
+      - frontend
+    networks:
+      - appnet
+
+  loadtest:
+    build: ../trabajo7-ddos
+    profiles:
+      - loadtest
+    depends_on:
+      - openldap
+      - backend
+      - frontend
+    networks:
+      - appnet
+
+volumes:
+  ldap_data:
+  ldap_config:
+  shared_secrets:
+  backend_auth_logs:
+
+networks:
+  appnet:
+    driver: bridge
