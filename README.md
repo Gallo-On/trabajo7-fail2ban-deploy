@@ -8,21 +8,32 @@ Este repositorio contiene el Compose de integración. Construye los tres servici
 - Clones locales de `trabajo7-ldap`, `trabajo7-backend`, `trabajo7-frontend` y `trabajo7-rotator` en `../source-repos/`.
 - Repo `trabajo7-ddos` en `../trabajo7-ddos/`.
 
-Desde una carpeta común, prepara esas rutas así:
+Desde PowerShell, crea una carpeta de trabajo en el Escritorio y ejecuta estos comandos en orden. Así no se clona por accidente dentro de `C:\Windows\System32`:
 
-```sh
+```powershell
+Set-Location "$HOME\Desktop"
+New-Item -ItemType Directory -Force entrega-fail2ban
+Set-Location entrega-fail2ban
+
 git clone https://github.com/Gallo-On/trabajo7-fail2ban-deploy.git
-mkdir source-repos
+New-Item -ItemType Directory -Force source-repos
 git clone https://github.com/Gallo-On/trabajo7-ldap.git source-repos/trabajo7-ldap
 git clone https://github.com/Gallo-On/trabajo7-backend.git source-repos/trabajo7-backend
 git clone https://github.com/Gallo-On/trabajo7-frontend.git source-repos/trabajo7-frontend
 git clone https://github.com/Gallo-On/trabajo7-rotator.git source-repos/trabajo7-rotator
 git clone https://github.com/Gallo-On/trabajo7-ddos.git
+
+Copy-Item .\trabajo7-fail2ban-deploy\.env.example .\trabajo7-fail2ban-deploy\.env
+Set-Location .\trabajo7-fail2ban-deploy
 ```
+
+Si `git clone` del repo DDoS vuelve a fallar por TLS, reinténtalo desde la carpeta `entrega-fail2ban` con `git -c http.version=HTTP/1.1 clone https://github.com/Gallo-On/trabajo7-ddos.git` antes de levantar Compose.
 
 Antes de arrancar, copia `.env.example` a `.env`. Los valores de ejemplo son únicamente para el laboratorio local; no reutilizarlos en producción ni para servicios expuestos a Internet.
 
 Los puertos predeterminados publicados son frontend `8080`, backend `5000` y LDAPS `636`. Se pueden cambiar con `FRONTEND_HOST_PORT`, `BACKEND_HOST_PORT` y `LDAPS_HOST_PORT`. LDAP sin TLS `389` solo es accesible dentro de la red Compose, para que el backend pueda autenticar; el host publica TLS/636.
+
+El laboratorio fija `LDAP_TLS_VERIFY_CLIENT=never`: LDAPS cifra el canal con el certificado de servidor autofirmado, y las pruebas de login usan bind LDAP, no certificados de cliente. No usar esta configuración de certificados de prueba como confianza de producción.
 
 ## Arranque y verificación
 
@@ -83,3 +94,7 @@ docker compose down
 ```
 
 Los volúmenes nombrados se conservan. `docker compose down -v` elimina los datos y la configuración LDAP persistidos.
+
+## Nota sobre Debian Buster
+
+La imagen `osixia/openldap:1.5.0` está basada en Debian Buster, que llegó al fin de soporte y cuyos repositorios normales ya no están disponibles. El Dockerfile del repo LDAP reescribe las fuentes APT a `archive.debian.org` únicamente para poder construir este laboratorio. Buster y esa imagen base son obsoletos; esta configuración es para práctica local, no para producción.

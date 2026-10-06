@@ -10,6 +10,7 @@ services:
       LDAP_DOMAIN: example.com
       LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD:-adminpassword}
       LDAP_LOG_LEVEL: "256"
+      LDAP_TLS_VERIFY_CLIENT: "never"
     cap_add:
       - NET_ADMIN
     ports:
